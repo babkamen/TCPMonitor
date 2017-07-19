@@ -23,6 +23,10 @@ public class Service {
     private Status status;
     private ServiceOutage serviceOutage;
 
+    /**
+     * Shows if service is in outage period
+     * @return
+     */
     public boolean isInOutage() {
         if (serviceOutage == null) {
             return false;

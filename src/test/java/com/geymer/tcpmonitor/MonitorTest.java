@@ -1,6 +1,7 @@
 package com.geymer.tcpmonitor;
 
 import lombok.extern.slf4j.Slf4j;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -17,29 +18,29 @@ import java.util.List;
 import java.util.concurrent.Executors;
 
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.verify;
 
 @Slf4j
 @RunWith(MockitoJUnitRunner.class)
 public class MonitorTest {
-    public static final int PORT = 6666;
+    //Get free random port
+    private static int randomPort;
     Service service = Service.builder()
             .host("localhost")
-            .port(PORT)
+            .port(randomPort)
             .build();
 
     @Mock
     ServiceObserver serviceObserver;
     @Captor
     ArgumentCaptor<Status> argumentCaptor;
-
-    @Test
-    public void monitorShouldRegisterService() {
-        Monitor monitor = new Monitor();
-        monitor.registerService(service);
-        assertTrue(monitor.containsService(service));
+    
+    @BeforeClass
+    public static void init() throws IOException {
+        try(ServerSocket serverSocket = new ServerSocket(0)) {
+            randomPort = serverSocket.getLocalPort();
+        }
     }
 
 
@@ -69,9 +70,8 @@ public class MonitorTest {
         Monitor monitor = new Monitor();
         List<Status> expected = Arrays.asList(Status.UP, Status.DOWN);
 
-        try (final ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (final ServerSocket serverSocket = new ServerSocket(randomPort)) {
 
-            monitor.registerService(service);
             monitor.subscribe(ServiceSubscription.builder()
                     .pollingFrequency(1)
                     .service(service)
@@ -97,19 +97,20 @@ public class MonitorTest {
         Monitor monitor = new Monitor(Executors.newScheduledThreadPool(10));
         List<Status> expected = Arrays.asList(Status.UP);
 
-        try (final ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (final ServerSocket serverSocket = new ServerSocket(randomPort)) {
 
-            monitor.registerService(service);
             monitor.subscribe(ServiceSubscription.builder()
                     .pollingFrequency(1)
                     .service(service)
                     .serviceObserver(serviceObserver)
                     .build());
+
             ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
             service.scheduleOutage(ServiceOutage.builder()
                     .startTime(now.plusSeconds(2))
                     .endTime(now.plusSeconds(5))
                     .build());
+
             monitor.start();
 
             scheduleServerStopAfter(serverSocket, 2000);

@@ -5,7 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.Socket;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -13,18 +16,18 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @NoArgsConstructor
+/**
+ * Tcp monitor.
+ * How to use: subscribe caller to a service and start monitor.
+ * @see Monitor#subscribe
+ */
 public class Monitor {
-    private List<Service> serviceRegistry = new ArrayList<>();
     private Map<Service, Set<ServiceObserver>> observers = new HashMap();
     private ScheduledExecutorService scheduledPool = Executors.newScheduledThreadPool(10);
 
 
     public Monitor(ScheduledExecutorService scheduledPool) {
         this.scheduledPool = scheduledPool;
-    }
-
-    public void registerService(Service service) {
-        this.serviceRegistry.add(service);
     }
 
     /**
@@ -36,7 +39,7 @@ public class Monitor {
 
         Service service = serviceSubscription.getService();
         long queryPeriod = serviceSubscription.getPollingFrequency();
-        
+
         if (serviceSubscription.getGracePeriod() != 0 && serviceSubscription.getGracePeriod() < queryPeriod) {
             queryPeriod = serviceSubscription.getGracePeriod();
         }
@@ -63,7 +66,7 @@ public class Monitor {
     }
 
     public boolean containsService(Service service) {
-        return serviceRegistry.contains(service);
+        return observers.keySet().contains(service);
     }
 
     public Status checkStatus(Service service) {
@@ -98,8 +101,8 @@ public class Monitor {
     }
 
     public void start() {
-        for (Service s : serviceRegistry) {
-            ScheduledFuture<?> scheduledFuture = scheduledPool.scheduleWithFixedDelay(() -> {
+        for (Service s : observers.keySet()) {
+            scheduledPool.scheduleWithFixedDelay(() -> {
                 checkServiceStatus(s);
             }, s.getQueryPeriod(), s.getQueryPeriod(), TimeUnit.MILLISECONDS);
         }
@@ -107,6 +110,7 @@ public class Monitor {
     }
 
     public void stop() throws InterruptedException {
+        log.debug("Will stop monitor in 1 second");
         scheduledPool.awaitTermination(1, TimeUnit.SECONDS);
         log.debug("Have a nice day!");
     }
